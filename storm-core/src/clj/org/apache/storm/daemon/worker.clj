@@ -43,6 +43,7 @@
   (:import [org.apache.logging.log4j Level])
   (:import [org.apache.logging.log4j.core.config LoggerConfig])
   (:import [org.apache.storm.generated LogConfig LogLevelAction])
+  (:import [org.apache.storm.metrics2 StormMetricRegistry])
   (:gen-class))
 
 (defmulti mk-suicide-fn cluster-mode)
@@ -214,6 +215,7 @@
                                                   :batch-timeout (storm-conf TOPOLOGY-DISRUPTOR-BATCH-TIMEOUT-MILLIS))]))
        (into {})
        ))
+
 
 (defn- stream->fields [^StormTopology topology component]
   (->> (ThriftTopologyUtils/getComponentCommon topology component)
@@ -688,6 +690,8 @@
                     (cancel-timer (:refresh-load-timer worker))
 
                     (close-resources worker)
+
+                    (StormMetricRegistry/shutdown)
 
                     (log-message "Trigger any worker shutdown hooks")
                     (run-worker-shutdown-hooks worker)
