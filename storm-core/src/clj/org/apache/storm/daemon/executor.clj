@@ -234,6 +234,8 @@
                                   (str "executor"  executor-id "-send-queue")
                                   (storm-conf TOPOLOGY-EXECUTOR-SEND-BUFFER-SIZE)
                                   (storm-conf TOPOLOGY-DISRUPTOR-WAIT-TIMEOUT-MILLIS)
+                                  (.getStormId worker-context)
+                                  (.getThisWorkerPort worker-context)
                                   :producer-type :single-threaded
                                   :batch-size (storm-conf TOPOLOGY-DISRUPTOR-BATCH-SIZE)
                                   :batch-timeout (storm-conf TOPOLOGY-DISRUPTOR-BATCH-TIMEOUT-MILLIS))
