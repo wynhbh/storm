@@ -15,24 +15,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.storm.metrics2;
+package org.apache.storm.metrics2.reporters;
 
+import com.codahale.metrics.MetricRegistry;
+import com.codahale.metrics.Reporter;
 
-import com.codahale.metrics.Gauge;
+import java.util.Map;
 
-public class SimpleGauge<T> implements Gauge<T> {
-    private T value;
+public interface StormReporter<T extends Reporter> {
+    String REPORT_PERIOD = "report.period";
+    String REPORT_PERIOD_UNITS = "report.period.units";
 
-    public SimpleGauge(T value){
-        this.value = value;
-    }
-
-    @Override
-    public T getValue() {
-        return this.value;
-    }
-
-    public void set(T value){
-        this.value = value;
-    }
+    void prepare(MetricRegistry metricsRegistry, Map<String, Object> conf, Map<String, Object> reporterConf);
+    void start();
+    void stop();
 }

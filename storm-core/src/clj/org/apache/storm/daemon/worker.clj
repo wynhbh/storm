@@ -599,7 +599,7 @@
       (spit (worker-artifacts-pid-path conf storm-id port) pid)))
 
   (declare establish-log-setting-callback)
-
+  (StormMetricRegistry/start conf DaemonType/WORKER)
   ;; start out with empty list of timeouts 
   (def latest-log-config (atom {}))
   (def original-log-levels (atom {}))
@@ -693,7 +693,7 @@
 
                     (close-resources worker)
 
-                    (StormMetricRegistry/shutdown)
+                    (StormMetricRegistry/stop)
 
                     (log-message "Trigger any worker shutdown hooks")
                     (run-worker-shutdown-hooks worker)

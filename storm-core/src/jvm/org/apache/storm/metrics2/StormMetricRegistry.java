@@ -1,15 +1,35 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.apache.storm.metrics2;
 
-
-import com.codahale.metrics.*;
-import com.codahale.metrics.graphite.Graphite;
-import com.codahale.metrics.graphite.GraphiteReporter;
+import com.codahale.metrics.Meter;
+import com.codahale.metrics.MetricRegistry;
+import org.apache.storm.Config;
+import org.apache.storm.cluster.DaemonType;
+import org.apache.storm.metrics2.reporters.StormReporter;
 import org.apache.storm.task.WorkerTopologyContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.net.InetSocketAddress;
-import java.util.concurrent.TimeUnit;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
 
 public class StormMetricRegistry {
 
@@ -17,24 +37,7 @@ public class StormMetricRegistry {
 
     private static final MetricRegistry REGISTRY = new MetricRegistry();
 
-    private static ScheduledReporter REPORTER;
-    static {
-//        REPORTER = ConsoleReporter.forRegistry(REGISTRY)
-//                .convertRatesTo(TimeUnit.SECONDS)
-//                .convertDurationsTo(TimeUnit.MILLISECONDS)
-//                .build();
-
-
-        final Graphite graphite = new Graphite(new InetSocketAddress("graphite", 2003));
-        REPORTER = GraphiteReporter.forRegistry(REGISTRY)
-                .convertRatesTo(TimeUnit.SECONDS)
-                .convertDurationsTo(TimeUnit.MILLISECONDS)
-                .filter(MetricFilter.ALL)
-                .build(graphite);
-
-        REPORTER.start(15, TimeUnit.SECONDS);
-    }
-
+    private static final List<StormReporter> REPORTERS = new ArrayList<>();
 
     public static <T> SimpleGauge<T>  gauge(T initialValue, String name, String topologyId, Integer port){
         SimpleGauge<T> gauge = new SimpleGauge<>(initialValue);
@@ -55,7 +58,6 @@ public class StormMetricRegistry {
         );
     }
 
-
     public static Meter meter(String name, WorkerTopologyContext context, String componentId){
         // storm.worker.{topology}.{host}.{port}
         // TODO: hostname
@@ -63,7 +65,47 @@ public class StormMetricRegistry {
         return REGISTRY.meter(metricName);
     }
 
-    public static void shutdown(){
-        REPORTER.stop();
+    public static void start(Map<String, Object> stormConfig, DaemonType type){
+        LOG.info("Starting metrics reporters...");
+        List<Map<String, Object>> reporterList = (List<Map<String, Object>>)stormConfig.get(Config.STORM_METRICS_REPORTERS);
+        for(Map<String, Object> reporterConfig : reporterList){
+            // only start those requested
+            List<String> daemons = (List<String>)reporterConfig.get("daemons");
+            for(String daemon : daemons){
+                if(DaemonType.valueOf(daemon.toUpperCase()) == type){
+                    startReporter(stormConfig, reporterConfig);
+                }
+            }
+        }
+    }
+
+    private static void startReporter(Map<String, Object> stormConfig, Map<String, Object> reporterConfig){
+        String clazz = (String)reporterConfig.get("class");
+        StormReporter reporter = null;
+        LOG.info("Attempting to instantiate reporter class: {}", clazz);
+        try{
+            reporter = instantiate(clazz);
+        } catch(Exception e){
+            LOG.warn("Unable to instantiate metrics reporter class: {}. Will skip this reporter.", clazz, e);
+        }
+        if(reporter != null){
+            reporter.prepare(REGISTRY, stormConfig, reporterConfig);
+            reporter.start();
+            REPORTERS.add(reporter);
+        }
+
+    }
+
+
+    private static StormReporter instantiate(String klass) throws ClassNotFoundException, IllegalAccessException, InstantiationException {
+        Class<?> c = Class.forName(klass);
+        return  (StormReporter) c.newInstance();
+    }
+
+
+    public static void stop(){
+        for(StormReporter sr : REPORTERS){
+            sr.stop();
+        }
     }
 }
