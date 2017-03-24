@@ -42,7 +42,11 @@ public class StormMetricRegistry {
     public static <T> SimpleGauge<T>  gauge(T initialValue, String name, String topologyId, Integer port){
         SimpleGauge<T> gauge = new SimpleGauge<>(initialValue);
         String metricName = String.format("storm.worker.%s.%s-%s", topologyId, port, name);
-        return REGISTRY.register(metricName, gauge);
+        if(REGISTRY.getGauges().containsKey(metricName)){
+            return (SimpleGauge)REGISTRY.getGauges().get(metricName);
+        } else {
+            return REGISTRY.register(metricName, gauge);
+        }
     }
 
     public static DisruptorMetrics disruptorMetrics(String name, String topologyId, Integer port){
@@ -77,6 +81,10 @@ public class StormMetricRegistry {
                 }
             }
         }
+    }
+
+    public static MetricRegistry registtry(){
+        return REGISTRY;
     }
 
     private static void startReporter(Map<String, Object> stormConfig, Map<String, Object> reporterConfig){
